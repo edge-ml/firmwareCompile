@@ -8,7 +8,8 @@ ENV PYTHONUNBUFFERED = 1
 RUN apt-get update && apt-get install -y \
 curl \
 python3-pip
-RUN pip3 install pyduinocli
+RUN pip3 install uvicorn
+RUN pip3 install fastapi
 RUN curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/bin sh;
 RUN arduino-cli core update index
 RUN arduino-cli core install arduino:mbed_nicla
@@ -21,5 +22,5 @@ RUN arduino-cli lib install Arduino_LPS22HB
 RUN arduino-cli lib install Arduino_HTS221
 RUN arduino-cli lib install Arduino_LSM9DS1
 RUN arduino-cli lib install EdgeML-Arduino
-EXPOSE 8000
-CMD [ "python3", "main.py" ] 
+EXPOSE 3004
+CMD ["uvicorn","main:app", "--workers", "6",  "--host", "0.0.0.0", "--port", "3004", "--backlog", "12"]
