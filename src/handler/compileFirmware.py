@@ -5,7 +5,6 @@ import shlex
 import subprocess
 
 
-
 def compileFirmware(mainFile, headerFile, device_name):
   res = None
   #deletes everything automatically at end of with
