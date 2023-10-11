@@ -3,7 +3,6 @@ import uvicorn
 import multiprocessing as mp
 from fastapi import FastAPI, Request, HTTPException, Path, UploadFile, File
 from fastapi.responses import PlainTextResponse, Response
-from src.handler.compileFirmware import compileFirmware
 import zipfile
 import os
 import shlex
@@ -13,10 +12,35 @@ import traceback
 from io import BytesIO
 import shutil
 
+import src.handler.wasm as wasm
+import src.handler.arduino as arduino
+
 BASE_DIR = "TEMP_COMPILE_FILES"
 
-
 app = FastAPI()
+
+# TODO we could make this better with classes sometime
+def createShellCall(tmpdir, device_name):
+    if device_name == "WASM" or \
+        device_name == "WASM-single-file":
+        return wasm.create_emscripten_call(tmpdir, device_name)
+    elif device_name == "nicla" or \
+        device_name == "nano" or \
+        device_name == "xiao":
+        return arduino.createArduinoCliCall(tmpdir, device_name)
+    else:
+        raise Exception(f'Unknown device: {device_name}')
+    
+def post_call_read_binary(tmpdir, device_name):
+    if device_name == "WASM" or \
+        device_name == "WASM-single-file":
+        return wasm.read_output(tmpdir, device_name)
+    elif device_name == "nicla" or \
+        device_name == "nano" or \
+        device_name == "xiao":
+        return arduino.read_ino(tmpdir)
+    else:
+        raise Exception(f'Unknown device: {device_name}')
 
 @app.post("/compileFirmware/{device_name}")
 async def postCompileFirmware(request: Request, device_name: str = Path(...)):
@@ -26,18 +50,6 @@ async def postCompileFirmware(request: Request, device_name: str = Path(...)):
         raise HTTPException(status_code=500, detail="Server could not compile binary from supplied files")
 
     return Response(binaryFile)
-
-
-def createArduinoCliCall(tmpdir, device_name):
-    if device_name == 'nicla':
-        cmd = f'arduino-cli compile --export-binaries --output-dir {tmpdir} -b arduino:mbed_nicla:nicla_sense {tmpdir}/main.ino'
-    elif device_name == 'nano':
-        cmd = f'arduino-cli compile --export-binaries --output-dir {tmpdir} -b arduino:mbed_nano:nano33ble {tmpdir}/main.ino'
-    elif device_name == 'xiao':
-        cmd = f'arduino-cli compile --export-binaries --output-dir {tmpdir} -b Seeeduino:mbed:xiaonRF52840Sense  {tmpdir}/main.ino' 
-    print("Arduino CLI command:", cmd)
-    return cmd
-
 
 @app.post("/compile/{device_name}")
 async def compileFirmware(device_name: str, file: UploadFile = File(...)):
@@ -50,8 +62,8 @@ async def compileFirmware(device_name: str, file: UploadFile = File(...)):
             if not os.path.exists(folder):
                 os.makedirs(folder)
             zip_file.extractall(folder)
-            arduino_cli_cmd = shlex.split(createArduinoCliCall(folder, device_name))
-            process = subprocess.Popen(arduino_cli_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            shell_cmd = shlex.split(createShellCall(folder, device_name))
+            process = subprocess.Popen(shell_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             while True:
                 output = process.stdout.readline().decode().strip()
                 if output == '' and process.poll() is not None:
@@ -61,12 +73,11 @@ async def compileFirmware(device_name: str, file: UploadFile = File(...)):
             process.wait()
             if process.returncode != 0:
                 raise Exception("Compilation failed")
-            with open(os.path.join(folder, "main.ino.hex"), "rb") as f:
-                firmware = f.read()
-                response = Response(content=firmware, media_type="application/octet-stream")
-                if os.path.exists(folder):
-                    shutil.rmtree(deleteFolder)
-                return response
+            firmware = post_call_read_binary(folder, device_name)
+            response = Response(content=firmware, media_type="application/octet-stream")
+            if os.path.exists(folder):
+                shutil.rmtree(deleteFolder)
+            return response
     except Exception as e:
         if os.path.exists(folder):
             shutil.rmtree(deleteFolder)
