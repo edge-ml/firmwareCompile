@@ -9,9 +9,9 @@ def create_emscripten_call(tmpdir, device_name):
         return f'emcc {tmpdir}/model.cpp -o {tmpdir}/model.js -sMODULARIZE -s EXPORTED_FUNCTIONS="[\'_predict\', \'_add_datapoint\']" -s EXPORTED_RUNTIME_METHODS="[\'cwrap\']"'
     
 def read_output(tmpdir, device_name):
-    if device_name == 'WASM-single-file':
+    if device_name == 'WASM':
         return zip_outputs(tmpdir)
-    elif device_name == 'WASM':
+    elif device_name == 'WASM-single-file':
         return read_single_file(tmpdir)
     
 def read_single_file(tmpdir, filename='model.js'):
