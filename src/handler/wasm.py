@@ -2,11 +2,12 @@ import os
 from contextlib import ExitStack
 from src.utils.zipfile import zipFiles
 
-def create_emscripten_call(tmpdir, device_name):
+def create_emscripten_call_and_preprocess(tmpdir, device_name):
+    os.rename(os.path.join(tmpdir, 'model.hpp'), os.path.join(tmpdir, 'model.cpp'))
     if device_name == 'WASM-single-file':
-        return f'emcc {tmpdir}/model.cpp -o {tmpdir}/model.js -sMODULARIZE -sSINGLE_FILE -s EXPORTED_FUNCTIONS="[\'_predict\', \'_add_datapoint\']" -s EXPORTED_RUNTIME_METHODS="[\'cwrap\']"'
+        return f'em++ {tmpdir}/model.cpp -o {tmpdir}/model.js -sMODULARIZE -sSINGLE_FILE --bind'
     elif device_name == 'WASM':
-        return f'emcc {tmpdir}/model.cpp -o {tmpdir}/model.js -sMODULARIZE -s EXPORTED_FUNCTIONS="[\'_predict\', \'_add_datapoint\']" -s EXPORTED_RUNTIME_METHODS="[\'cwrap\']"'
+        return f'em++ {tmpdir}/model.cpp -o {tmpdir}/model.js -sMODULARIZE --bind'
     
 def read_output(tmpdir, device_name):
     if device_name == 'WASM':

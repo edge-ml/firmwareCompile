@@ -20,10 +20,10 @@ BASE_DIR = "TEMP_COMPILE_FILES"
 app = FastAPI()
 
 # TODO we could make this better with classes sometime
-def createShellCall(tmpdir, device_name):
+def createShellCallAndPreprocess(tmpdir, device_name):
     if device_name == "WASM" or \
         device_name == "WASM-single-file":
-        return wasm.create_emscripten_call(tmpdir, device_name)
+        return wasm.create_emscripten_call_and_preprocess(tmpdir, device_name)
     elif device_name == "nicla" or \
         device_name == "nano" or \
         device_name == "xiao":
@@ -62,7 +62,7 @@ async def compileFirmware(device_name: str, file: UploadFile = File(...)):
             if not os.path.exists(folder):
                 os.makedirs(folder)
             zip_file.extractall(folder)
-            shell_cmd = shlex.split(createShellCall(folder, device_name))
+            shell_cmd = shlex.split(createShellCallAndPreprocess(folder, device_name))
             process = subprocess.Popen(shell_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             while True:
                 output = process.stdout.readline().decode().strip()
